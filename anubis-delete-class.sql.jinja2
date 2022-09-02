@@ -1,0 +1,96 @@
+{% if delete %}
+/*
+ * Generated sql to delete '{{ course }}' from anubis.
+ */
+{% else %}
+/*
+ * Generated sql to reset '{{ course }}' from anubis.
+ */
+{% endif %}
+
+BEGIN;
+
+select @course_id:=id from course where name = '{{ course }}';
+-- Tables without deeper foreign keys
+select 'Deleteing from tables with direct FKs for {{ course }}' as '';
+delete t from course c join in_course t on c.id = t.course_id where c.id = @course_id;
+delete t, l from static_file t join lecture_notes l on l.static_file_id = t.id join course c on c.id = l.course_id where c.id = @course_id;
+
+select 'Update theia sessions to playgrounds instead of deleting them (so we still have records) for {{ course }}' as '';
+update theia_session t
+  join course c on c.id = t.course_id
+  set t.course_id = NULL, t.playground = 1, t.assignment_id = NULL
+  where c.id = @course_id;
+
+select 'Deleteing submission subtables (this will take a while) for {{ course }}' as '';
+delete sb
+       from course c
+       join `assignment` a on c.id = a.course_id
+       join submission s on a.id = s.assignment_id
+       join submission_build sb on s.id = sb.submission_id
+ where c.id = @course_id;
+delete str
+       from course c
+       join `assignment` a on c.id = a.course_id
+       join submission s on a.id = s.assignment_id
+       join submission_test_result str on s.id = str.submission_id
+ where c.id = @course_id;
+
+select 'Deleting submissions (this  will take a while) for {{ course }}' as '';
+delete s
+       from course c
+       join `assignment` a on c.id = a.course_id
+       join submission s on s.assignment_id = a.id
+ where c.id = @course_id;
+
+select 'Deleteing assignment questions & subtables (this will take a while) for {{ course }}' as '';
+delete asr
+       from course c
+       join `assignment` a on c.id = a.course_id
+       join assignment_question aq on a.id = aq.assignment_id
+       join assigned_student_question asq on a.id = asq.assignment_id
+       join assigned_student_response asr on asq.id = asr.assigned_question_id
+ where c.id = @course_id;
+delete asq
+       from course c
+       join `assignment` a on c.id = a.course_id
+       join assignment_question aq on a.id = aq.assignment_id
+       join assigned_student_question asq on a.id = asq.assignment_id
+ where c.id = @course_id;
+delete aq
+       from course c
+       join `assignment` a on c.id = a.course_id
+       join assignment_question aq on a.id = aq.assignment_id
+ where c.id = @course_id;
+
+select 'Deleteing assignment subtables (this will take a while) for {{ course }}' as '';
+delete `at`
+       from course c
+       join `assignment` a on c.id = a.course_id
+       join assignment_test `at` on a.id = `at`.assignment_id
+ where c.id = @course_id;
+delete ar
+       from course c
+       join `assignment` a on c.id = a.course_id
+       join assignment_repo ar on a.id = ar.assignment_id
+ where c.id = @course_id;
+delete le
+       from course c
+       join `assignment` a on c.id = a.course_id
+       join late_exception le on a.id = le.assignment_id
+ where c.id = @course_id;
+
+select 'Deleteing assignments for {{ course }}' as '';
+delete a from course c join `assignment` a on c.id = a.course_id where c.id = @course_id;
+
+{% if delete_course %}
+select 'Deleteing course for {{ course }}' as '';
+delete t from course c join static_file t on c.id = t.course_id where c.id = @course_id;
+delete t from course c join professor_for_course t on c.id = t.course_id where c.id = @course_id;
+delete t from course c join ta_for_course t on c.id = t.course_id where c.id = @course_id;
+delete c from course c where c.id = @course_id;
+{% endif %}
+
+COMMIT;
+
+-- -------------------------------------------------------------------------------------------
